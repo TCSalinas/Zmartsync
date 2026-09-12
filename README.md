@@ -6,11 +6,12 @@ Herramienta de automatización en Python para iniciar sesión en [ZmartBoard](ht
 
 ## 📌 ¿Cómo funciona?
 
-El script principal (`interceptor.py`) utiliza **Playwright** para:
+El script principal (`interceptor.py`) utiliza **Playwright** y la API de ZmartBoard para:
 1. Iniciar un contexto de navegador persistente (`sesion_zmartboard/`), guardando cookies y credenciales locales para no tener que iniciar sesión manualmente cada vez.
 2. Navegar automáticamente a ZmartBoard y autenticarse.
-3. Interceptar en tiempo real las respuestas de red dirigidas al endpoint `workspace`.
-4. Extraer la información completa del tablero y guardarla en `tablero_actualizado.json`.
+3. Interceptar en tiempo real las respuestas de red dirigidas al endpoint `workspace` y capturar el token de autorización activo.
+4. Descargar de forma concurrente los títulos y detalles completos de las subtareas de cada tarjeta.
+5. Guardar la información unificada en `tablero_actualizado.json`.
 
 ---
 
