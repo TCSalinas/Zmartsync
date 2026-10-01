@@ -156,8 +156,9 @@ def imprimir_resumen(data):
     print("="*50)
 
 def actualizar_datos():
-    # Soporta modo headless por argumento CLI (--headless) o variable de entorno
+    # Soporta modo headless y selección de navegador (--headless, --firefox)
     headless_mode = "--headless" in sys.argv or os.getenv("HEADLESS", "false").lower() in ("true", "1", "yes")
+    use_firefox = "--firefox" in sys.argv or os.getenv("BROWSER", "").lower() == "firefox"
 
     # Detección de entorno gráfico en Linux / WSL
     has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
@@ -168,29 +169,44 @@ def actualizar_datos():
         headless_mode = True
 
     with sync_playwright() as p:
-        print(f"🚀 Iniciando navegador de Playwright (modo {'headless' if headless_mode else 'visible'})...")
+        browser_type_name = "Firefox" if use_firefox else "Chromium"
+        print(f"🚀 Iniciando navegador {browser_type_name} (modo {'headless' if headless_mode else 'visible'})...")
         
-        # Flags para máxima compatibilidad en WSL, Docker y entornos Linux virtualizados
+        # Flags para máxima compatibilidad en WSL, Docker y evitar caídas en CDP
         chromium_args = [
             "--no-sandbox",
             "--disable-setuid-sandbox",
             "--disable-dev-shm-usage",
             "--disable-gpu",
+            "--disable-software-rasterizer",
             "--no-first-run",
+            "--disable-blink-features=AutomationControlled",
         ]
+
+        browser_engine = p.firefox if use_firefox else p.chromium
+        launch_kwargs = {
+            "user_data_dir": "./sesion_zmartboard",
+            "headless": headless_mode,
+        }
+        if not use_firefox:
+            launch_kwargs["args"] = chromium_args
         
         try:
-            browser = p.chromium.launch_persistent_context(
-                user_data_dir="./sesion_zmartboard", 
-                headless=headless_mode,
-                args=chromium_args
-            )
+            browser = browser_engine.launch_persistent_context(**launch_kwargs)
         except Exception as e:
             err = str(e)
-            print("\n" + "!"*60)
+            print("\n" + "!"*65)
             print("❌ ERROR AL INICIAR EL NAVEGADOR DE PLAYWRIGHT:")
             print(f"   {err}\n")
-            if any(k in err.lower() for k in ["missing dependencies", "host system is missing", "shared object", "cannot open shared"]):
+            if any(k in err.lower() for k in ["sigtrap", "trace/breakpoint", "signal 5", "133"]):
+                print("💡 SOLUCIÓN PARA ERROR SIGTRAP EN WSL2:")
+                print("   1. Aumenta los mapas de memoria del kernel de WSL2 (ejecuta en terminal):")
+                print("      👉 sudo sysctl -w vm.max_map_count=1048576")
+                print("   2. O ejecuta usando Firefox (no utiliza protocolo CDP vulnerable a SIGTRAP):")
+                print("      👉 playwright install firefox")
+                print("      👉 python interceptor.py --firefox")
+                print("   3. O la opción definitiva: ejecuta el script en PowerShell de Windows directamente.\n")
+            elif any(k in err.lower() for k in ["missing dependencies", "host system is missing", "shared object", "cannot open shared"]):
                 print("💡 SOLUCIÓN (Faltan librerías del sistema Linux/WSL):")
                 print("   Ejecuta en tu terminal de WSL/Linux:")
                 print("   👉 sudo playwright install-deps\n")
@@ -201,7 +217,7 @@ def actualizar_datos():
                 print("   Opción 2: Ejecuta este proyecto directamente en Windows (PowerShell/CMD).")
                 print("   Opción 3: Ejecuta en modo invisible:")
                 print("             python interceptor.py --headless\n")
-            print("!"*60 + "\n")
+            print("!"*65 + "\n")
             return
         
         page = browser.new_page()

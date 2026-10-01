@@ -85,6 +85,21 @@ En entornos WSL son muy comunes dos situaciones:
      python interceptor.py --headless
      ```
 
+3. **Crasheo de Chromium con `SIGTRAP` al conectar el protocolo de depuración (CDP)**:
+   Ocurre porque el kernel de WSL2 por defecto restringe la cantidad de mapas de memoria virtual (`vm.max_map_count`) que el depurador V8 de Chromium necesita:
+   - **Solución A (Aumentar memoria de mapas en WSL)**:
+     ```bash
+     sudo sysctl -w vm.max_map_count=1048576
+     ```
+     *(Para hacerlo permanente: `echo "vm.max_map_count=1048576" | sudo tee -a /etc/sysctl.conf`)*.
+   - **Solución B (Usar Firefox en vez de Chromium)**:
+     Firefox no usa el protocolo CDP y evita por completo este fallo:
+     ```bash
+     playwright install firefox
+     python interceptor.py --firefox
+     ```
+   - **Solución C**: Correr en Windows PowerShell directamente (no sufre de límites de kernel virtualizado).
+
 ---
 
 ## 💻 Guía de Uso
