@@ -159,13 +159,50 @@ def actualizar_datos():
     # Soporta modo headless por argumento CLI (--headless) o variable de entorno
     headless_mode = "--headless" in sys.argv or os.getenv("HEADLESS", "false").lower() in ("true", "1", "yes")
 
+    # Detección de entorno gráfico en Linux / WSL
+    has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    if sys.platform.startswith("linux") and not has_display and not headless_mode:
+        print("⚠️ No se detectó un servidor gráfico ($DISPLAY o Wayland) en este entorno Linux/WSL.")
+        print("🔄 Cambiando automáticamente a modo --headless...")
+        print("💡 Nota: Si necesitas iniciar sesión por primera vez, consulta la sección de WSL en el README.\n")
+        headless_mode = True
+
     with sync_playwright() as p:
         print(f"🚀 Iniciando navegador de Playwright (modo {'headless' if headless_mode else 'visible'})...")
         
-        browser = p.chromium.launch_persistent_context(
-            user_data_dir="./sesion_zmartboard", 
-            headless=headless_mode
-        )
+        # Flags para máxima compatibilidad en WSL, Docker y entornos Linux virtualizados
+        chromium_args = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--no-first-run",
+        ]
+        
+        try:
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir="./sesion_zmartboard", 
+                headless=headless_mode,
+                args=chromium_args
+            )
+        except Exception as e:
+            err = str(e)
+            print("\n" + "!"*60)
+            print("❌ ERROR AL INICIAR EL NAVEGADOR DE PLAYWRIGHT:")
+            print(f"   {err}\n")
+            if any(k in err.lower() for k in ["missing dependencies", "host system is missing", "shared object", "cannot open shared"]):
+                print("💡 SOLUCIÓN (Faltan librerías del sistema Linux/WSL):")
+                print("   Ejecuta en tu terminal de WSL/Linux:")
+                print("   👉 sudo playwright install-deps\n")
+            elif any(k in err.lower() for k in ["display", "target closed", "context or browser has been closed"]):
+                print("💡 SOLUCIÓN PARA WSL (Sin entorno gráfico o WSLg desactualizado):")
+                print("   Opción 1: En PowerShell de Windows, actualiza WSL ejecutando:")
+                print("             wsl --update")
+                print("   Opción 2: Ejecuta este proyecto directamente en Windows (PowerShell/CMD).")
+                print("   Opción 3: Ejecuta en modo invisible:")
+                print("             python interceptor.py --headless\n")
+            print("!"*60 + "\n")
+            return
         
         page = browser.new_page()
         page.on("response", capturar_workspace)

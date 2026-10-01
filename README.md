@@ -50,10 +50,40 @@ Herramienta en Python para automatizar el inicio de sesión en [ZmartBoard](http
    pip install -r requirements.txt
    ```
 
-4. **Instalar el navegador de Playwright**:
-   ```bash
-   playwright install chromium
-   ```
+4. **Instalar el navegador de Playwright con dependencias del sistema**:
+   - En Windows (PowerShell) o macOS:
+     ```bash
+     playwright install chromium
+     ```
+   - En Linux o WSL (instala Chromium y las librerías del sistema necesarias):
+     ```bash
+     playwright install --with-deps chromium
+     ```
+     *(O si ya lo tienes instalado: `sudo playwright install-deps`).*
+
+---
+
+## 🐧 ¿Usas WSL (Windows Subsystem for Linux)?
+
+En entornos WSL son muy comunes dos situaciones:
+
+1. **Error de librerías del sistema (`Host system is missing dependencies` o error de `.so`)**:
+   - Solución rápida en tu terminal WSL:
+     ```bash
+     sudo playwright install-deps
+     ```
+
+2. **Error al abrir la ventana gráfica (`Target closed` o falta de `$DISPLAY`)**:
+   - **Opción recomendada (más simple)**: Clona y corre el proyecto directamente desde **PowerShell o CMD de Windows** (sin entrar a WSL). Windows abrirá la ventana del navegador de forma 100% nativa sin necesidad de configurar pantallas virtuales.
+   - **Opción WSLg**: Si usas Windows 10/11, abre PowerShell en Windows como Administrador y actualiza WSL:
+     ```powershell
+     wsl --update
+     ```
+     Luego reinicia WSL con `wsl --shutdown`.
+   - **Opción Headless**: Si ya tienes la sesión iniciada o no necesitas ventana gráfica:
+     ```bash
+     python interceptor.py --headless
+     ```
 
 ---
 
