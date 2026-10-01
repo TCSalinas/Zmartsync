@@ -1,42 +1,45 @@
 # ZmartSync 📋⚡
 
-Herramienta de automatización en Python para iniciar sesión en [ZmartBoard](https://www.zmartboard.cloud/) e interceptar las tarjetas y datos del tablero (workspace) para exportarlos automáticamente en formato JSON.
+Herramienta en Python para automatizar el inicio de sesión en [ZmartBoard](https://www.zmartboard.cloud/) y extraer todas las tarjetas, subtareas, personas asignadas, fechas y pull requests en un archivo JSON unificado y listo para usar (`tablero_actualizado.json`).
 
 ---
 
-## 📌 ¿Cómo funciona?
+## 🌟 Características
 
-El script principal (`interceptor.py`) utiliza **Playwright** y la API de ZmartBoard para:
-1. Iniciar un contexto de navegador persistente (`sesion_zmartboard/`), guardando cookies y credenciales locales para no tener que iniciar sesión manualmente cada vez.
-2. Navegar automáticamente a ZmartBoard y autenticarse.
-3. Interceptar en tiempo real las respuestas de red dirigidas al endpoint `workspace` y capturar el token de autorización activo.
-4. Descargar de forma concurrente los títulos y detalles completos de las subtareas de cada tarjeta.
-5. Guardar la información unificada en `tablero_actualizado.json`.
+- 🤖 **Sesión persistente con Playwright**: Guarda localmente la sesión de navegación (`sesion_zmartboard/`) para no tener que ingresar credenciales en cada ejecución.
+- 📥 **Extracción completa del tablero**: Obtiene todas las columnas (Backlog, To Do, In Progress, Review, Done, Blocked, etc.) y todas las tarjetas asociadas.
+- ☑️ **Subtareas con títulos completos**: ZmartBoard solo envía IDs en la vista general del tablero; ZmartSync consulta concurrentemente la API para descargar el texto, estado y fechas de cada subtarea.
+- 👤 **Integrantes asignados**: Extrae el nombre, apellido, correo institucional (`@uc.cl`) e identificadores de cada responsable.
+- 🔀 **Pull Requests de GitHub vinculados**: Incluye número de PR, enlace directo a GitHub (`htmlUrl`), estado (`OPEN`, `MERGED`, `CLOSED`) y estado de revisión.
+- 📅 **Fechas y plazos**: Registra `deadline` (fecha límite), `startedAt`, `doneAt`, fechas de creación/actualización y el ciclo o sprint activo (`activeCycle`).
+- 📝 **Descripciones y etiquetas**: Preserva el texto completo de las especificaciones y todos los labels de cada tarea.
+- 📊 **Resumen automático en consola**: Muestra un panel informativo con el conteo de tarjetas por columna y métricas del tablero.
+- 🕶️ **Modo invisible (Headless)**: Permite ejecutarse en segundo plano con el parámetro `--headless`.
 
 ---
 
 ## 🚀 Requisitos Previos
 
-- **Python 3.10+**
-- **Git**
+- **Python 3.10** o superior.
+- **Git**.
 
 ---
 
-## 🛠️ Instalación
+## 🛠️ Instalación Rápida
 
-1. **Clonar el repositorio** (o situarte en la carpeta del proyecto):
+1. **Clonar el repositorio**:
    ```bash
-   git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git
-   cd zmartsync
+   git clone https://github.com/TCSalinas/Zmartsync.git
+   cd Zmartsync
    ```
 
 2. **Crear y activar un entorno virtual**:
-   - En Linux / macOS:
+   - **En Linux / macOS**:
      ```bash
      python3 -m venv .venv
      source .venv/bin/activate
      ```
-   - En Windows (PowerShell):
+   - **En Windows (PowerShell)**:
      ```powershell
      python -m venv .venv
      .venv\Scripts\Activate.ps1
@@ -47,62 +50,139 @@ El script principal (`interceptor.py`) utiliza **Playwright** y la API de ZmartB
    pip install -r requirements.txt
    ```
 
-4. **Instalar los navegadores de Playwright**:
+4. **Instalar el navegador de Playwright**:
    ```bash
    playwright install chromium
    ```
 
 ---
 
-## 💻 Uso
+## 💻 Guía de Uso
 
-### 1. Primer uso (Guardar sesión inicial)
-La primera vez que ejecutes el script, es recomendable que el navegador esté visible (`headless=False`) para verificar o completar el inicio de sesión:
+### 1. Primer uso (Autenticación y guardado de sesión)
 
-1. Ejecuta:
-   ```bash
-   python interceptor.py
-   ```
-2. Si es necesario, inicia sesión con tu cuenta de ZmartBoard en la ventana del navegador.
-3. Una vez autenticado, la sesión quedará guardada en la carpeta `sesion_zmartboard/`. Las próximas ejecuciones mantendrán tu cuenta iniciada sin pedir credenciales.
+La primera vez debes ejecutar el script en modo visible para iniciar sesión:
 
-### 2. Extracción automática
-Una vez guardada la sesión:
-1. Ejecuta:
-   ```bash
-   python interceptor.py
-   ```
-2. El script abrirá el tablero, interceptará la petición del espacio de trabajo y creará/actualizará el archivo:
-   ```text
-   tablero_actualizado.json
-   ```
+```bash
+python interceptor.py
+```
 
-> [!TIP]
-> **Modo invisible (Headless):**
-> Puedes cambiar `headless=True` en la línea 20 de `interceptor.py` para que el script se ejecute en segundo plano sin levantar la ventana del navegador.
+1. Se abrirá una ventana de Chromium en ZmartBoard.
+2. Si aparece el botón **Sign in**, el script intentará hacer clic automáticamente o podrás pulsar en iniciar sesión con tu cuenta / Google.
+3. Una vez dentro del tablero, el script:
+   - Detectará e interceptará automáticamente los datos del espacio de trabajo.
+   - Extraerá el token de autorización temporal.
+   - Descargará en paralelo los títulos y detalles de las subtareas.
+   - Guardará la sesión en la carpeta local `sesion_zmartboard/`.
+   - Generará el archivo `tablero_actualizado.json` e imprimirá el resumen en la terminal.
 
 ---
 
-## 📁 Estructura del Proyecto
+### 2. Siguientes ejecuciones
+
+Dado que tu sesión ya quedó guardada localmente:
+
+- **Modo normal**:
+  ```bash
+  python interceptor.py
+  ```
+- **Modo en segundo plano (sin abrir ventana de navegador)**:
+  ```bash
+  python interceptor.py --headless
+  ```
+
+---
+
+## 📊 Ejemplo del Resumen en Terminal
+
+Al finalizar la extracción, verás un reporte como este:
 
 ```text
-zmartsync/
-├── interceptor.py            # Script principal con Playwright (interceptor de peticiones)
-├── zmartsync.py              # Script alternativo para peticiones directas vía API REST
-├── requirements.txt          # Dependencias de Python
-├── .env.example              # Plantilla de variables de entorno
-├── .gitignore                # Reglas para excluir sesiones, datos privados y venv
-└── README.md                 # Documentación del proyecto
+==================================================
+📊 RESUMEN: IIC2154.2026-2.S2.Grupo2 - Board
+==================================================
+  • Backlog: 1 tarjetas
+  • Blocked: 0 tarjetas
+  • To Do: 7 tarjetas
+  • In Progress: 16 tarjetas
+  • Review: 3 tarjetas
+  • Done: 28 tarjetas
+--------------------------------------------------
+📌 Total de tarjetas: 55
+👤 Tarjetas con personas asignadas: 54
+☑️  Tarjetas con subtareas: 17 (70 subtareas con título)
+🔀 Tarjetas con PRs vinculados: 14
+==================================================
 ```
 
 ---
 
-## 🔒 Seguridad y Privacidad
+## 📄 Estructura de cada Tarjeta en `tablero_actualizado.json`
 
-El archivo `.gitignore` incluido en este repositorio está configurado para **proteger tus datos sensibles**:
-- `sesion_zmartboard/`: Contiene las cookies y tokens de tu sesión activa. **Nunca debe subirse a Git.**
-- `*.json`: Evita subir los datos y tarjetas privadas extraídas de tu tablero.
-- `.venv/`: Ignora el entorno virtual.
+El archivo exportado contiene el tablero completo con la siguiente estructura por cada tarjeta:
 
-> [!CAUTION]
-> Si utilizas `zmartsync.py`, ten cuidado de **no quemar tokens JWT o correos personales directamente en el código**. Se recomienda usar variables de entorno (`.env`).
+```json
+{
+  "id": "cmtdo4bmy001jjp02p5dhzuli",
+  "publicId": "IIC2-22",
+  "title": "Configuración inicial Mobile",
+  "description": "Texto completo con requerimientos, dependencias y notas...",
+  "deadline": "2026-09-10T23:00:00.000Z",
+  "assignedUsers": [
+    {
+      "user": {
+        "firstName": "Luis",
+        "lastName": "Reyes",
+        "email": "luisreyes@uc.cl"
+      }
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "cmuolr2mh0003jk02j7kyqrwo",
+      "title": "Crear migración de base de datos",
+      "done": false
+    }
+  ],
+  "pullRequests": [
+    {
+      "number": 15,
+      "htmlUrl": "https://github.com/mi-org/mi-repo/pull/15",
+      "state": "MERGED",
+      "reviewStatus": "APPROVED"
+    }
+  ],
+  "labels": [
+    { "label": "Desarrollo Mobile" }
+  ]
+}
+```
+
+---
+
+## 📁 Estructura del Repositorio
+
+```text
+Zmartsync/
+├── interceptor.py            # Script principal extractor y enriquecedor
+├── requirements.txt          # Dependencias de Python (playwright, requests, etc.)
+├── .env.example              # Plantilla para variables de entorno opcionales
+├── .gitignore                # Protege cookies, datos del tablero y entornos virtuales
+└── README.md                 # Documentación e instrucciones
+```
+
+---
+
+## 🔒 Privacidad y Seguridad
+
+El archivo `.gitignore` ya viene configurado para que **nunca se suban datos confidenciales**:
+- `sesion_zmartboard/`: Contiene las cookies y tokens de tu sesión de navegador.
+- `*.json`: Evita subir accidentalmente las tarjetas, descripciones y datos privados de tu equipo.
+- `.venv/`: Excluye el entorno virtual.
+
+---
+
+## 🔗 Repositorio
+
+Encuentra el código fuente y novedades en:  
+👉 **[https://github.com/TCSalinas/Zmartsync](https://github.com/TCSalinas/Zmartsync)**

@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import json
 import time
@@ -63,7 +64,7 @@ def enriquecer_subtareas(data, auth_token):
         except Exception:
             return task_id, None
 
-    # Descarga concurrente rápida para no demorar
+    # Descarga concurrente rápida para optimizar tiempos
     subtareas_por_tarea = {}
     completadas = 0
     with ThreadPoolExecutor(max_workers=5) as executor:
@@ -75,7 +76,7 @@ def enriquecer_subtareas(data, auth_token):
                 subtareas_por_tarea[task_id] = subtasks_detalle
             print(f"\r⏳ Progreso subtareas: {completadas}/{total_tareas} tarjetas procesadas", end="", flush=True)
 
-    print()  # Salto de línea al terminar el progreso
+    print()  # Salto de línea
 
     # Reemplazar las subtareas con los detalles completos (título, estado, fechas, etc.)
     subtareas_totales = 0
@@ -100,7 +101,7 @@ def actualizar_env_token(token):
             content = re.sub(r'ZMARTBOARD_TOKEN="[^"]*"', f'ZMARTBOARD_TOKEN="{token}"', content)
             with open(env_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print("🔑 Token de sesión actualizado automáticamente en .env")
+            print("🔑 Token de sesión actualizado en .env")
     except Exception:
         pass
 
@@ -116,13 +117,54 @@ def capturar_workspace(response):
         except Exception as e:
             print(f"⚠️ Error al leer respuesta de workspace: {e}")
 
+def imprimir_resumen(data):
+    """Imprime un resumen visual del tablero exportado."""
+    project_name = data.get("project", {}).get("title") or data.get("project", {}).get("name", "Proyecto")
+    board = data.get("currentBoard", {})
+    board_title = board.get("title", "Tablero")
+    columns = board.get("columns", [])
+    
+    total_tareas = 0
+    tareas_con_asignados = 0
+    tareas_con_subtareas = 0
+    total_subtareas = 0
+    tareas_con_prs = 0
+    
+    print("\n" + "="*50)
+    print(f"📊 RESUMEN: {project_name} - {board_title}")
+    print("="*50)
+    
+    for col in columns:
+        col_name = col.get("name", "Columna")
+        tasks = col.get("tasks", [])
+        total_tareas += len(tasks)
+        print(f"  • {col_name}: {len(tasks)} tarjetas")
+        for t in tasks:
+            if t.get("assignedUsers"):
+                tareas_con_asignados += 1
+            if t.get("subtasks"):
+                tareas_con_subtareas += 1
+                total_subtareas += len(t["subtasks"])
+            if t.get("pullRequests"):
+                tareas_con_prs += 1
+                
+    print("-"*50)
+    print(f"📌 Total de tarjetas: {total_tareas}")
+    print(f"👤 Tarjetas con personas asignadas: {tareas_con_asignados}")
+    print(f"☑️  Tarjetas con subtareas: {tareas_con_subtareas} ({total_subtareas} subtareas con título)")
+    print(f"🔀 Tarjetas con PRs vinculados: {tareas_con_prs}")
+    print("="*50)
+
 def actualizar_datos():
+    # Soporta modo headless por argumento CLI (--headless) o variable de entorno
+    headless_mode = "--headless" in sys.argv or os.getenv("HEADLESS", "false").lower() in ("true", "1", "yes")
+
     with sync_playwright() as p:
-        print("🚀 Iniciando navegador de Playwright...")
+        print(f"🚀 Iniciando navegador de Playwright (modo {'headless' if headless_mode else 'visible'})...")
         
         browser = p.chromium.launch_persistent_context(
             user_data_dir="./sesion_zmartboard", 
-            headless=False # Cambiar a True una vez confirmada la sesión
+            headless=headless_mode
         )
         
         page = browser.new_page()
@@ -136,20 +178,24 @@ def actualizar_datos():
         print("🤖 Verificando botón de inicio de sesión...")
         try:
             boton = page.locator("text='Sign in'")
-            boton.wait_for(state="visible", timeout=5000)
+            boton.wait_for(state="visible", timeout=3000)
             boton.click()
             print("👆 ¡Clic automático en 'Sign in' realizado!")
         except Exception:
             print("⏭️ No se requirió clic en Sign in (o ya se encuentra dentro).")
         
-        print("⏳ Esperando a que el tablero cargue e intercepte los datos (hasta 45s)...")
+        print("⏳ Esperando a que el tablero cargue e intercepte los datos (hasta 90s)...")
+        if not headless_mode:
+            print("💡 Si es tu primera vez o tu sesión expiró, inicia sesión en la ventana del navegador.")
+            
         inicio = time.time()
-        while not estado_captura["listo"] and (time.time() - inicio) < 45:
+        timeout_max = 90
+        while not estado_captura["listo"] and (time.time() - inicio) < timeout_max:
             page.wait_for_timeout(1000)
             
         if not estado_captura["listo"]:
             print("❌ No se interceptó la petición de workspace en el tiempo límite.")
-            print("💡 Si tu sesión expiró, inicia sesión en la ventana del navegador y vuelve a ejecutar.")
+            print("💡 Asegúrate de iniciar sesión en la ventana del navegador (ejecuta sin --headless).")
             browser.close()
             return
         
@@ -166,10 +212,12 @@ def actualizar_datos():
     else:
         print("⚠️ No se encontró encabezado Authorization en la petición interceptada. Se guardará sin subtareas enriquecidas.")
 
-    with open('tablero_actualizado.json', 'w', encoding='utf-8') as f:
+    archivo_salida = 'tablero_actualizado.json'
+    with open(archivo_salida, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
         
-    print("🎉 ¡Archivo tablero_actualizado.json guardado exitosamente con todas las tarjetas y subtareas completas!")
+    print(f"\n🎉 ¡Archivo {archivo_salida} guardado exitosamente!")
+    imprimir_resumen(data)
 
 if __name__ == "__main__":
     actualizar_datos()
