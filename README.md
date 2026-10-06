@@ -8,6 +8,7 @@ Herramienta en Python para automatizar el inicio de sesión en [ZmartBoard](http
 
 - 🤖 **Sesión persistente con Playwright**: Guarda localmente la sesión de navegación (`sesion_zmartboard/`) para no tener que ingresar credenciales en cada ejecución.
 - 📥 **Extracción completa del tablero**: Obtiene todas las columnas (Backlog, To Do, In Progress, Review, Done, Blocked, etc.) y todas las tarjetas asociadas.
+- 📦 **Tarjetas archivadas**: Descarga automáticamente la lista completa de tarjetas archivadas (`archivedTasks`) e integra el detalle de sus subtareas.
 - ☑️ **Subtareas con títulos completos**: ZmartBoard solo envía IDs en la vista general del tablero; ZmartSync consulta concurrentemente la API para descargar el texto, estado y fechas de cada subtarea.
 - 👤 **Integrantes asignados**: Extrae el nombre, apellido, correo institucional (`@uc.cl`) e identificadores de cada responsable.
 - 🔀 **Pull Requests de GitHub vinculados**: Incluye número de PR, enlace directo a GitHub (`htmlUrl`), estado (`OPEN`, `MERGED`, `CLOSED`) y estado de revisión.

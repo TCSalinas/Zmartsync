@@ -14,19 +14,61 @@ estado_captura = {
     "listo": False
 }
 
+def obtener_tarjetas_archivadas(project_id, auth_token):
+    """
+    Consulta el endpoint de la API para traer la lista de tarjetas archivadas del proyecto.
+    """
+    if not auth_token.startswith("Bearer "):
+        auth_header = f"Bearer {auth_token}"
+    else:
+        auth_header = auth_token
+
+    headers = {
+        "authorization": auth_header,
+        "accept": "application/json, text/plain, */*",
+        "content-type": "application/json",
+        "origin": "https://www.zmartboard.cloud",
+        "referer": "https://www.zmartboard.cloud/",
+        "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    url = f"https://api.zmartboard.cloud/api/projects/{project_id}/tasks/archived"
+    try:
+        print(f"\n📦 Descargando tarjetas archivadas del proyecto...")
+        res = requests.get(url, headers=headers, timeout=15)
+        if res.status_code == 200:
+            archived_tasks = res.json()
+            if isinstance(archived_tasks, list):
+                print(f"✅ ¡{len(archived_tasks)} tarjetas archivadas obtenidas con éxito!")
+                return archived_tasks
+            elif isinstance(archived_tasks, dict) and "tasks" in archived_tasks:
+                tasks = archived_tasks["tasks"]
+                print(f"✅ ¡{len(tasks)} tarjetas archivadas obtenidas con éxito!")
+                return tasks
+        print(f"⚠️ No se pudieron obtener las tarjetas archivadas (Status {res.status_code})")
+    except Exception as e:
+        print(f"⚠️ Error consultando tarjetas archivadas: {e}")
+    
+    return []
+
 def enriquecer_subtareas(data, auth_token):
     """
     Consulta la API de ZmartBoard para obtener el título y detalle completo
-    de cada subtarea en las tarjetas que contengan subtareas.
+    de cada subtarea en las tarjetas (activas y archivadas) que contengan subtareas.
     """
     columns = data.get("currentBoard", {}).get("columns", [])
+    archived_tasks = data.get("archivedTasks", [])
     
-    # Recolectar todas las tareas que tengan subtareas
+    # Recolectar todas las tareas que tengan subtareas (activas + archivadas)
     tareas_con_subtareas = []
     for col in columns:
         for task in col.get("tasks", []):
             if task.get("subtasks") and len(task["subtasks"]) > 0:
                 tareas_con_subtareas.append(task)
+                
+    for task in archived_tasks:
+        if task.get("subtasks") and len(task["subtasks"]) > 0:
+            tareas_con_subtareas.append(task)
                 
     total_tareas = len(tareas_con_subtareas)
     if total_tareas == 0:
@@ -123,6 +165,7 @@ def imprimir_resumen(data):
     board = data.get("currentBoard", {})
     board_title = board.get("title", "Tablero")
     columns = board.get("columns", [])
+    archived_tasks = data.get("archivedTasks", [])
     
     total_tareas = 0
     tareas_con_asignados = 0
@@ -148,8 +191,18 @@ def imprimir_resumen(data):
             if t.get("pullRequests"):
                 tareas_con_prs += 1
                 
+    for t in archived_tasks:
+        if t.get("assignedUsers"):
+            tareas_con_asignados += 1
+        if t.get("subtasks"):
+            tareas_con_subtareas += 1
+            total_subtareas += len(t["subtasks"])
+        if t.get("pullRequests"):
+            tareas_con_prs += 1
+
     print("-"*50)
-    print(f"📌 Total de tarjetas: {total_tareas}")
+    print(f"📌 Total de tarjetas activas: {total_tareas}")
+    print(f"📦 Total de tarjetas archivadas: {len(archived_tasks)}")
     print(f"👤 Tarjetas con personas asignadas: {tareas_con_asignados}")
     print(f"☑️  Tarjetas con subtareas: {tareas_con_subtareas} ({total_subtareas} subtareas con título)")
     print(f"🔀 Tarjetas con PRs vinculados: {tareas_con_prs}")
@@ -261,6 +314,11 @@ def actualizar_datos():
 
     if auth_token:
         actualizar_env_token(auth_token.replace("Bearer ", "").strip())
+        project_id = data.get("project", {}).get("id")
+        if project_id:
+            archived = obtener_tarjetas_archivadas(project_id, auth_token)
+            data["archivedTasks"] = archived
+        
         data = enriquecer_subtareas(data, auth_token)
     else:
         print("⚠️ No se encontró encabezado Authorization en la petición interceptada. Se guardará sin subtareas enriquecidas.")
